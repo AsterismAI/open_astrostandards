@@ -1,0 +1,6 @@
+*.ipynb_checkpoints
+__pycache__
+SGP4_Open_License.txt
+aslog.txt
+full_time_constants.dat
+time-constants.dat
