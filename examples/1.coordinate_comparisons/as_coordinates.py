@@ -14,7 +14,6 @@
 import numpy as np
 import pandas as pd
 import ctypes
-import helpers
 
 # -----------------------------------------------------------------------------
 def temej2k( pos, vel, date : float, func : callable ):
@@ -30,18 +29,18 @@ def temej2k( pos, vel, date : float, func : callable ):
     return np.array( topos ), np.array( tovel )
 
 # -----------------------------------------------------------------------------
-def j2k_to_teme( pos, vel, date, AstroFuncDll ):
-    return temej2k( pos, vel, date, AstroFuncDll.RotJ2KToDate )
+def j2k_to_teme( pos, vel, date, PA):
+    return temej2k( pos, vel, date, PA.AstroFuncDll.RotJ2KToDate )
 
 # -----------------------------------------------------------------------------
-def teme_to_j2k( pos, vel, date, AstroFuncDll ):
-    return temej2k( pos, vel, date, AstroFuncDll.RotDateToJ2K )
+def teme_to_j2k( pos, vel, date, PA):
+    return temej2k( pos, vel, date, PA.AstroFuncDll.RotDateToJ2K )
 
 # -----------------------------------------------------------------------------
-def teme_to_efg(  pos, vel, date, AstroFuncDll ):
+def teme_to_efg(  pos, vel, date, PA):
     topos  = (ctypes.c_double*3)()
     tovel  = (ctypes.c_double*3)()                   
-    AstroFuncDll.ECIToEFGTime( date, 
+    PA.AstroFuncDll.ECIToEFGTime( date, 
                                (ctypes.c_double * 3)(*pos), 
                                (ctypes.c_double * 3)(*vel), 
                                topos, 
@@ -49,10 +48,10 @@ def teme_to_efg(  pos, vel, date, AstroFuncDll ):
     return np.array( topos ), np.array( tovel )
 
 # -----------------------------------------------------------------------------
-def efg_to_teme(  pos, vel, date, AstroFuncDll ):
+def efg_to_teme(  pos, vel, date, PA ):
     topos  = (ctypes.c_double*3)()
     tovel  = (ctypes.c_double*3)()                   
-    AstroFuncDll.EFGToECITime( date, 
+    PA.AstroFuncDll.EFGToECITime( date, 
                                (ctypes.c_double * 3)(*pos), 
                                (ctypes.c_double * 3)(*vel), 
                                topos, 
@@ -60,17 +59,17 @@ def efg_to_teme(  pos, vel, date, AstroFuncDll ):
     return np.array( topos ), np.array( tovel )
 
 # -----------------------------------------------------------------------------
-def teme_to_llh( pos, vel, date, AstroFuncDll ):
+def teme_to_llh( pos, vel, date, PA ):
     llh  = (ctypes.c_double*3)()
-    AstroFuncDll.XYZToLLHTime( date, 
+    PA.AstroFuncDll.XYZToLLHTime( date, 
                                (ctypes.c_double * 3)(*pos), 
                                llh )
     return np.array( llh )
 
 # -----------------------------------------------------------------------------
-def llh_to_teme( llh, date, AstroFuncDll ):
+def llh_to_teme( llh, date, PA ):
     pos  = (ctypes.c_double*3)()
-    AstroFuncDll.LLHToXYZ( date, 
+    PA.AstroFuncDll.LLHToXYZ( date, 
                                (ctypes.c_double * 3)(*llh), 
                                pos )
     return np.array( pos )
@@ -80,16 +79,16 @@ def llh_to_teme( llh, date, AstroFuncDll ):
 # this is mostly setup to do sensor checks or geometry calcs, so you'll be 
 # converting times a lot, and re-using them
 # =============================================================================
-def setup_times( ds50_utc : list[ float ], TimeFuncDll) :    # date in astrostandards epoch 
+def setup_times( ds50_utc : list[ float ], PA ) :    # date in astrostandards epoch 
     '''
     this will convert a set of astrostandard formatted times in UTC
     to other time formats needed for conversion later
     this is often the first function run
     '''
     def convert_from_utc( d50u ) :
-        d50et = TimeFuncDll.UTCToET( d50u )
-        d50ut = TimeFuncDll.UTCToUT1( d50u )
-        theta = TimeFuncDll.ThetaGrnwchFK5( d50ut )
+        d50et = PA.TimeFuncDll.UTCToET( d50u )
+        d50ut = PA.TimeFuncDll.UTCToUT1( d50u )
+        theta = PA.TimeFuncDll.ThetaGrnwchFK5( d50ut )
             
         return {'ds50_utc' : d50u,
                 'ds50_et'  : d50et,
@@ -102,8 +101,7 @@ def times_to_llhsensor( times : pd.DataFrame,     # from setup_times
                      lat : float,              # latitude (degrees)
                      lon : float,              # longitude (degrees)
                      alt : float,              # altitude (above WGS84; km)
-                     AstroFuncDll,
-                     TimeFuncDll ):
+                     PA ):
     '''
     times must have the ds50_utc entry filled
     '''
@@ -115,12 +113,12 @@ def times_to_llhsensor( times : pd.DataFrame,     # from setup_times
     sen_efg        = (ctypes.c_double * 3)()
     _vel           = (ctypes.c_double * 3)(0,0,0)
     llh            = (ctypes.c_double * 3)( lat, lon, alt )
-    AstroFuncDll.LLHToEFGPos( llh, sen_efg )
+    PA.AstroFuncDll.LLHToEFGPos( llh, sen_efg )
     def llhtoxyz( d50_utc ):
-        theta = TimeFuncDll.ThetaGrnwchFK5( d50_utc )
+        theta = PA.TimeFuncDll.ThetaGrnwchFK5( d50_utc )
         lst   = sensor_lon_rad + theta
         # AstroFuncDll.LLHToXYZTime( d50_utc, llh, sen_eci )
-        AstroFuncDll.EFGToECI( theta, sen_efg, _vel, sen_eci_p, sen_eci_v )
+        PA.AstroFuncDll.EFGToECI( theta, sen_efg, _vel, sen_eci_p, sen_eci_v )
         return {'lat' : float(llh[0]), 'lon' : float(llh[1]), 'alt' : float(llh[2]), 
                 'theta'  : theta, 'lst' : lst,
                 'teme_p' : list( sen_eci_p ),
@@ -130,14 +128,14 @@ def times_to_llhsensor( times : pd.DataFrame,     # from setup_times
 # -----------------------------------------------------------------------------
 def topographic_calcs( observer_df : pd.DataFrame,      # must have times and teme locations filled in
                        target_df   : pd.DataFrame,      # must have tmies and teme locations filled in
-                       AstroFuncDll ):  
+                       PA ):  
     '''
     you must have local sidereal time (lst) in this frame (so even for space based,
     you need this value
     '''
-    TOPO = helpers.astrostd_named_fields( AstroFuncDll, prefix='XA_TOPO_' )
+    TOPO = PA.helpers.astrostd_named_fields( PA.AstroFuncDll, prefix='XA_TOPO_' )
     def getTopo( S, T ):
-        AstroFuncDll.ECIToTopoComps( S['lst'], 
+        PA.AstroFuncDll.ECIToTopoComps( S['lst'], 
                                      S['lat'], 
                                      (ctypes.c_double * 3)(*S['teme_p']), 
                                      (ctypes.c_double * 3)(*T['teme_p']), 
@@ -162,65 +160,64 @@ def get_celest( times : pd.DataFrame,      # from setup_times
     return pd.DataFrame( [getpos(X) for X in times['ds50_et'] ] )
 
 # -----------------------------------------------------------------------------
-def get_sun(   times: pd.DataFrame ):
-    return get_celest( times, AstroFuncDll.CompSunPos )
+def get_sun(   times: pd.DataFrame, PA):
+    return get_celest( times, PA.AstroFuncDll.CompSunPos )
 
 # -----------------------------------------------------------------------------
-def get_moon(   times: pd.DataFrame ):
-    return get_celest( times, AstroFuncDll.CompMoonPos )
+def get_moon(   times: pd.DataFrame , PA ):
+    return get_celest( times, PA.AstroFuncDll.CompMoonPos )
 
 # -----------------------------------------------------------------------------
 def annotate_teme_llh( teme_df : pd.DataFrame,
-                       AstroFuncDll,
-                       TimeFuncDll):
+                       PA ):
     dates = teme_df['ds50_utc']
     teme  = teme_df['teme_p'].tolist()
     _vel  = (ctypes.c_double * 3)()
-    llh   = [teme_to_llh( P,_vel, D, AstroFuncDll) for P,D in zip( teme, dates ) ]
+    llh   = [teme_to_llh( P,_vel, D, PA) for P,D in zip( teme, dates ) ]
     teme_df['lat'] = [ X[0] for X in llh ]
     teme_df['lon'] = [ X[1] for X in llh ]
     teme_df['alt'] = [ X[2] for X in llh ]
-    theta = [ TimeFuncDll.ThetaGrnwchFK5( D ) for D in dates ]
+    theta = [ PA.TimeFuncDll.ThetaGrnwchFK5( D ) for D in dates ]
     teme_df['lst']   = [ A + B for A,B in zip( theta, teme_df['lon'] ) ]
     return teme_df
 
 # =============================================================================
 if __name__ == '__main__':
     from datetime import datetime, timedelta
-    from load_utils import *
-    import helpers
-    init_all()
+    from public_astrostandards import public_astrostandards as PA
+    PA.init_all()
 
     NOW = datetime.utcnow()
-    NOWDS50 = helpers.datetime_to_ds50( NOW , TimeFuncDll )
+    # NOTE : the helpers call needs the TimeFuncDll.. not the full library handle
+    NOWDS50 = PA.helpers.datetime_to_ds50( NOW , PA.TimeFuncDll )
     
-    print( teme_to_j2k( [7000,0,0], [0,6,0], NOWDS50, AstroFuncDll ) ) 
-    print( j2k_to_teme( [7000,0,0], [0,6,0], NOWDS50, AstroFuncDll ) ) 
-    print( teme_to_efg( [7000,0,0], [0,6,0], NOWDS50, AstroFuncDll ) ) 
-    print( efg_to_teme( [7000,0,0], [0,6,0], NOWDS50, AstroFuncDll ) ) 
-    print( teme_to_llh( [7000,0,0], [0,6,0], NOWDS50, AstroFuncDll ) ) 
-    print( llh_to_teme( [0,0,0], NOWDS50, AstroFuncDll ) ) 
+    print( teme_to_j2k( [7000,0,0], [0,6,0], NOWDS50, PA ) ) 
+    print( j2k_to_teme( [7000,0,0], [0,6,0], NOWDS50, PA ) ) 
+    print( teme_to_efg( [7000,0,0], [0,6,0], NOWDS50, PA ) ) 
+    print( efg_to_teme( [7000,0,0], [0,6,0], NOWDS50, PA ) ) 
+    print( teme_to_llh( [7000,0,0], [0,6,0], NOWDS50, PA ) ) 
+    print( llh_to_teme( [0,0,0], NOWDS50, PA ) ) 
 
     # series of dates
     DATES       = [ NOW + timedelta(minutes=X) for X in range(0,1440,1) ]
-    DATES_DS50  = [ helpers.datetime_to_ds50( X , TimeFuncDll ) for X in DATES ]
+    DATES_DS50  = [ PA.helpers.datetime_to_ds50( X , PA.TimeFuncDll ) for X in DATES ]
 
     # setup a dataframe with all the times we need
-    times       = setup_times( DATES_DS50, TimeFuncDll )
+    times       = setup_times( DATES_DS50, PA )
     # annotate that frame with the sensor ECI position at the times
-    sen         = times_to_llhsensor( times, 0, 0, 0, AstroFuncDll, TimeFuncDll)
+    sen         = times_to_llhsensor( times, 0, 0, 0, PA )
     # make a fake target frame (we can use times_to_llhsensor for this too
     # as long as the sensor and target have teme_p, teme_v, lst, and lat filled out, this should work
-    target      = times_to_llhsensor( times, 0, 0, 40000, AstroFuncDll, TimeFuncDll)
+    target      = times_to_llhsensor( times, 0, 0, 40000, PA )
     # now calculate the look vectors
-    look        = topographic_calcs( sen, target )
+    look        = topographic_calcs( sen, target , PA)
     print(look)
     print(look.iloc[0].to_dict())
 
     # a more realistic case: let's look at the sun from 0,0,0
     # now get the sun using the same times we calculated before
-    sun         = get_sun( times )
-    look        = topographic_calcs( sen, sun )
+    sun         = get_sun( times, PA )
+    look        = topographic_calcs( sen, sun, PA )
     print(look)
 
     # an example of looking from a space-based observer to another
@@ -228,8 +225,8 @@ if __name__ == '__main__':
     fake_eci   = times.copy()
     fake_eci['teme_p'] = [ np.array([7000,0,0]) for _ in range( len(fake_eci) )]
     fake_eci['teme_v'] = [ np.array([0,7,0]) for _ in range( len(fake_eci) )]
-    fake_eci           = annotate_teme_llh( fake_eci, AstroFuncDll, TimeFuncDll )
-    look               = topographic_calcs( fake_eci, sun )
+    fake_eci           = annotate_teme_llh( fake_eci,  PA )
+    look               = topographic_calcs( fake_eci, sun , PA)
     print(look)
     print(look.iloc[0].to_dict())
     

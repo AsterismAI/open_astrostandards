@@ -1,19 +1,18 @@
-# import the load_utils helper
-import load_utils
-import helpers
+# import the PA helper
+from public_astrostandards import public_astrostandards as PA
 
 # init the astrostandards
 print('\nInitializing the astrostandards\n')
-ptr = load_utils.init_all( logfile='test.log' ) 
+ptr = PA.init_all( logfile='test.log' ) 
 
 # test TLE
 L1 = '1 25544U 98067A   24365.67842578  .00026430  00000-0  46140-3 0  9990'
 L2 = '2 25544  51.6404  61.8250 0005853  25.4579 117.0387 15.50482079489028'
 
 # load the TLE
-tleid = load_utils.TleDll.TleAddSatFrLines( 
-    load_utils.Cstr( L1, 512 ),
-    load_utils.Cstr( L2, 512 )
+tleid = PA.TleDll.TleAddSatFrLines( 
+    PA.Cstr( L1, 512 ),
+    PA.Cstr( L2, 512 )
     )
 print('TLE id inside astrostandards is {}'.format( tleid ) )
 assert tleid > 0
@@ -29,11 +28,11 @@ assert tleid > 0
 #677 typedef int (STDCALL *fnPtrTleDataToArray)(__int64 satKey, double xa_tle[64], char xs_tle[512]);
 
 # get a holder for the XA_TLE_ fields.  These will be pulled from the headers and put into a holder
-XA_TLE = helpers.astrostd_named_fields( load_utils.TleDll, prefix='XA_TLE_')
-UNUSED = load_utils.Cstr('',512)  
+XA_TLE = PA.helpers.astrostd_named_fields( PA.TleDll, prefix='XA_TLE_')
+UNUSED = PA.Cstr('',512)  
 
 # pass this data pointer into the AstroStandards function (the class will let you parse / modify afterwards)
-assert 0 == load_utils.TleDll.TleDataToArray( tleid, XA_TLE.data, UNUSED )
+assert 0 == PA.TleDll.TleDataToArray( tleid, XA_TLE.data, UNUSED )
 
 # you can now see this as a dict
 print( XA_TLE.toDict() )
